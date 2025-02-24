@@ -7,20 +7,55 @@ from matplotlib import cm
 from matplotlib import axes
 from mpl_toolkits.mplot3d import Axes3D
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional, Tuple
+from enum import Enum
+
+class GendaylitMode(Enum):
+    W  = 1 # direct-normal-irradiance diffuse-horizontal-irradiance (W/m^2)
+    L = 2 # direct-normal-illuminance diffuse-horizontal-illuminance (lux)
+    G = 3 # direct-horizontal-irradiance diffuse-horizontal-irradiance (W/m^2)
+    E = 4 # global-horizontal-irradiance (W/m^2)
+
 
 @dataclass
 class SkyData:
     altitude: float
     azimuth: float
-    direct_normal_irradiance: float
-    diffusion_horizonttal_irradiance: float
+    # model W
+    direct_normal_irradiance: float = None
+    diffusion_horizonttal_irradiance: float = None
+    # mode L
+    direct_normal_illuminance: float = None
+    diffusion_horizonttal_illumiance: float = None
+    # mode G
+    direct_horizontal_irradiance: float = None
+    # diffusion_horizonttal_irradiance
+
+    # mode E
+    global_horizontal_irradiance: float = None
+
 
 @dataclass
 class IlluData:
     dmx: str
     xml: str
     vmx: str
+
+def count_sensors_num(file_path: str) -> int:
+    """ Count the number of sensors from vmx file.
+
+    Args:
+        file_path (str): vmx file path.
+
+    Returns:
+        int: the number of sensors.
+    """
+    count = 0
+    with open(file_path, 'r', encoding='utf-8') as file:
+        for line in file:
+            if line.strip() and line.strip()[0].isdigit():
+                count += 1
+    return count
 
 
 def dc_timestep(view, transmission, daylight, sky, save_path = "", option="", if_print=False):
@@ -53,21 +88,34 @@ def dc_timestep(view, transmission, daylight, sky, save_path = "", option="", if
         rgb_list.append((r, g, b))
     return rgb_list
 
-def dc_timestep_pipe(sky_data: SkyData, illu_data: IlluData):
+def dc_timestep_pipe(sky_data: SkyData, illu_data: IlluData, min_altitude: float= 0.0, mode: GendaylitMode = GendaylitMode.W) -> List[Tuple[float]]:
     """Use pipe to compute annual simulation time-step(s) via matrix multiplication, which avoid outputing files.
 
     Args:
         sky_data (SkyData): contain altitude, azimuth,  direct_normal_irradiance and diffusion_horizonttal_irradiance
         illu_data (IlluData): conrain dmx, vmx and xml
-
+        mode (GendaylitModel): four gendaylit modes are provied, see "Gendaylitmode" 
+        min_altitude (bool): default true. When the solar altitude angle is very low (close to or below the horizon),
+            the atmospheric mass value will become very large, enven exceding the upper limit set by the Radiance software.
+            Radiance will raise a warning:air mass has reached the maximal value. Set min_altitude to  avoid it.
     Raises:
         RuntimeError: process command failed.
 
     Returns:
         list[tuple(3)]: RGB list 
     """
+    if sky_data.altitude < min_altitude:
+        rgb_list = [(0.0, 0.0, 0.0) for _ in range(count_sensors_num(illu_data.vmx))]
+        return rgb_list
 
-    command_1 = ["gendaylit", "-ang", str(sky_data.altitude), str(sky_data.azimuth), "-W", str(sky_data.direct_normal_irradiance), str(sky_data.diffusion_horizonttal_irradiance)]
+    # print(sky_data.altitude, sky_data.azimuth, sky_data.direct_normal_irradiance, sky_data.diffusion_horizonttal_irradiance)
+    if mode == GendaylitMode.W:
+        command_1 = ["gendaylit", "-ang", str(sky_data.altitude), str(sky_data.azimuth), "-W", str(sky_data.direct_normal_irradiance), str(sky_data.diffusion_horizonttal_irradiance)]
+    elif mode == GendaylitMode.L:
+        command_1 = ["gendaylit", "-ang", str(sky_data.altitude), str(sky_data.azimuth), "-L", str(sky_data.direct_normal_illuminance), str(sky_data.diffusion_horizonttal_illumiance)]
+    else: 
+        raise NotImplementedError
+    
     command_2 = ["genskyvec", "-m", "4", "-c", "1", "1", "1"]
     command_3 = ["dctimestep", "-h", illu_data.vmx, illu_data.xml, illu_data.dmx]
 
