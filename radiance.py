@@ -1,14 +1,29 @@
 import os
 import numpy as np
 import pandas as pd
-import pyepw
+import subprocess
 from matplotlib import pyplot as plt
 from matplotlib import cm
 from matplotlib import axes
 from mpl_toolkits.mplot3d import Axes3D
+from dataclasses import dataclass
+from typing import List
+
+@dataclass
+class SkyData:
+    altitude: float
+    azimuth: float
+    direct_normal_irradiance: float
+    diffusion_horizonttal_irradiance: float
+
+@dataclass
+class IlluData:
+    dmx: str
+    xml: str
+    vmx: str
 
 
-def dc_timestep(view, transmission, daylight, sky, save_path, option="", if_print=True):
+def dc_timestep(view, transmission, daylight, sky, save_path = "", option="", if_print=False):
     """
     compute annual simulation time-step(s) via matrix multiplication
     :param view:  view matrix, relating outgoing directions on window to desired results at interior
@@ -20,15 +35,84 @@ def dc_timestep(view, transmission, daylight, sky, save_path, option="", if_prin
     :param if_print: if print the command
     :return: the RGB values of each photo cells
     """
-
-    command = "dctimestep -h " + option + " " + view + " " + transmission + " " + daylight + " " + sky + " > " \
-              + save_path
+    # command = "dctimestep -h " + option + " " + view + " " + transmission + " " + daylight + " " + sky
+    command = "dctimestep -h " + option + " " + view + " " + transmission + " " \
+          + daylight + " " + sky + " > " + save_path
     if if_print:
         print(command)
-    os.system(command)
+    # os.system(command)
+    process = subprocess.Popen(["dctimestep", "-h", view, transmission, daylight, sky], \
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    stdout, stderr = process.communicate()
+    if stderr != '':
+        raise RuntimeError
+    rgb_lines = stdout.strip().split('\n')
+    rgb_list = []
+    for line in rgb_lines:
+        r, g, b = map(float, line.strip().split())
+        rgb_list.append((r, g, b))
+    return rgb_list
+
+def dc_timestep_pipe(sky_data: SkyData, illu_data: IlluData):
+    """Use pipe to compute annual simulation time-step(s) via matrix multiplication, which avoid outputing files.
+
+    Args:
+        sky_data (SkyData): contain altitude, azimuth,  direct_normal_irradiance and diffusion_horizonttal_irradiance
+        illu_data (IlluData): conrain dmx, vmx and xml
+
+    Raises:
+        RuntimeError: process command failed.
+
+    Returns:
+        list[tuple(3)]: RGB list 
+    """
+
+    command_1 = ["gendaylit", "-ang", str(sky_data.altitude), str(sky_data.azimuth), "-W", str(sky_data.direct_normal_irradiance), str(sky_data.diffusion_horizonttal_irradiance)]
+    command_2 = ["genskyvec", "-m", "4", "-c", "1", "1", "1"]
+    command_3 = ["dctimestep", "-h", illu_data.vmx, illu_data.xml, illu_data.dmx]
+
+    process_1 = subprocess.Popen(command_1, stdout=subprocess.PIPE)
+    process_2 = subprocess.Popen(command_2, stdin=process_1.stdout, stdout=subprocess.PIPE)
+    process_3 = subprocess.Popen(command_3, stdin=process_2.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+    stdout, stderr = process_3.communicate()
+
+    if stderr != '':
+        raise RuntimeError
+    rgb_lines = stdout.strip().split('\n')
+    rgb_list = []
+    for line in rgb_lines:
+        r, g, b = map(float, line.strip().split())
+        rgb_list.append((r, g, b))
+    return rgb_list
+
+def dc_timestep_group(sky_data: SkyData, illu_group: List[IlluData]):
+    # not work!
+    command_1 = ["gendaylit", "-ang", str(sky_data.altitude), str(sky_data.azimuth), "-W", str(sky_data.direct_normal_irradiance), str(sky_data.diffusion_horizonttal_irradiance)]
+    command_2 = ["genskyvec", "-m", "4", "-c", "1", "1", "1"]
+    process_1 = subprocess.Popen(command_1, stdout=subprocess.PIPE)
+    process_2 = subprocess.Popen(command_2, stdin=process_1.stdout, stdout=subprocess.PIPE)
 
 
-def view_matrix(octree, photocells, window_material):
+    rgb_group = []
+
+    for illu_data in illu_group:
+        command_3 = ["dctimestep", "-h", illu_data.vmx, illu_data.xml, illu_data.dmx]
+        process_3 = subprocess.Popen(command_3, stdin=process_2.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        stdout, stderr = process_3.communicate()
+        if stderr != '':
+            print(stderr)
+            raise RuntimeError
+        rgb_lines = stdout.strip().split('\n')
+        rgb_list = []
+        for line in rgb_lines:
+            r, g, b = map(float, line.strip().split())
+            rgb_list.append((r, g, b))
+        rgb_group.append(rgb_list)
+    return rgb_group
+
+
+def view_matrix(octree, photocells, window_material, if_print=False):
     """
     compute the view matrix by the view file.
     There may be some wrongs in native-windows.
@@ -44,7 +128,7 @@ def view_matrix(octree, photocells, window_material):
     return matrix
 
 
-def gen_skv_p(altitude, azimuth, epsilon, delta, path_save_skv):
+def gen_skv_p(altitude, azimuth, epsilon, delta, path_save_skv, if_print=False):
     """
     gen sky vector by Perez parameters
     Deriving the epsilon and delta parameters for use with the -P invocation is quite complicated, and you are unlikely
@@ -60,7 +144,9 @@ def gen_skv_p(altitude, azimuth, epsilon, delta, path_save_skv):
 
     command = "gendaylit -ang " + str(altitude) + " " + str(azimuth) + " -P " + " " + str(epsilon) + " " + str(delta) +\
               " " + " |genskyvec -m 4 -c 1 1 1 > " + path_save_skv
-    print(command)
+    if if_print:
+        print(command)
+    
     os.system(command)
 
 
