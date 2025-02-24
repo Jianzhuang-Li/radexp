@@ -26,19 +26,25 @@ longitude = location.longitude
 latitude = location.latitude
 height = 2.19
 
-weather_d = weather_data.get_weather(month=2, day=21, hour=12)
+weather_d = weather_data.get_weather(month=2, day=24, hour=12)
 
-year = weather_d.year
+year = 2025
+# year = weather_d.year
 month = weather_d.month
 day = weather_d.day
 hour = weather_d.hour
 minute = weather_d.minute
 second = 0
 
+print(longitude, latitude)
+print(month, day, hour, minute, second)
 alt, az = get_alt_az(lon=longitude, lat=latitude, height=height, year=year, month=month, day=day, hour=hour, minute=minute, second=second)
+print(alt, az)
 
 direct_normal_irradiance = weather_d.direct_normal_radiation
 diffuse_horizontal_irradiance = weather_d.diffuse_horizontal_radiation
+direct_normal_illuminance = weather_d.direct_normal_illuminance
+diffuse_horizontal_illuminance = weather_d.diffuse_horizontal_illuminance
 
 path_save_skv = os.path.join(radfiles.radfiles_skv, f"skv_{year}_{month}_{day}_{hour}.skv")
 
@@ -46,23 +52,28 @@ path_save_skv = os.path.join(radfiles.radfiles_skv, f"skv_{year}_{month}_{day}_{
 xml_angle = xml_angle_null
 skv = skv_063018
 
-skv_data = SkyData(altitude=alt, azimuth=az, direct_normal_irradiance=direct_normal_irradiance, diffusion_horizonttal_irradiance=diffuse_horizontal_irradiance)
+skv_data = SkyData(altitude=alt, azimuth=az, \
+                direct_normal_irradiance=direct_normal_irradiance, \
+                diffusion_horizonttal_irradiance=diffuse_horizontal_irradiance, \
+                direct_normal_illuminance=direct_normal_illuminance, \
+                diffusion_horizonttal_illumiance=diffuse_horizontal_illuminance)
+print(skv_data)
 illu_data_south = IlluData(dmx=dmx_south, xml=xml_angle, vmx=vmx_south)
 illu_data_west = IlluData(dmx=dmx_west, xml=xml_angle, vmx=vmx_west)
 illu_data_east = IlluData(dmx=dmx_east, xml=xml_angle, vmx=vmx_east)
 illu_data_north = IlluData(dmx=dmx_north, xml=xml_angle, vmx=vmx_south)
 
-illu_group = [illu_data_south, illu_data_north, illu_data_east, illu_data_west]
-result = dc_timestep_group(skv_data, illu_group)
-result_south = result[0]
-result_north = result[1]
-result_east = result[2]
-result_west = result[3]
+# illu_group = [illu_data_south, illu_data_north, illu_data_east, illu_data_west]
+# result = dc_timestep_group(skv_data, illu_group)
+# result_south = result[0]
+# result_north = result[1]
+# result_east = result[2]
+# result_west = result[3]
 
-# result_south = dc_timestep_pipe(sky_data=skv_data, illu_data=illu_data_south)
-# result_north = dc_timestep_pipe(sky_data=skv_data, illu_data=illu_data_north)
-# result_east = dc_timestep_pipe(sky_data=skv_data, illu_data=illu_data_east)
-# result_west = dc_timestep_pipe(sky_data=skv_data, illu_data=illu_data_west)
+result_south = dc_timestep_pipe(sky_data=skv_data, illu_data=illu_data_south)
+result_north = dc_timestep_pipe(sky_data=skv_data, illu_data=illu_data_north)
+result_east = dc_timestep_pipe(sky_data=skv_data, illu_data=illu_data_east)
+result_west = dc_timestep_pipe(sky_data=skv_data, illu_data=illu_data_west)
 
 """
 result_south = dc_timestep(vmx_south, xml_angle, dmx_south, skv, "")

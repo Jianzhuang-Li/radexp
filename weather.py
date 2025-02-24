@@ -3,6 +3,8 @@ from dataclasses import dataclass
 import math
 import datetime
 import ephem
+import pvlib
+import pytz
 
 @dataclass
 class EpWeatherData:
@@ -23,7 +25,7 @@ class EpWeatherData:
     wind_speed: float
     wind_direction: float
 
-def get_alt_az(lon, lat, height, year, month, day, hour, minute, second):
+def get_alt_az(lon, lat, height, year, month, day, hour, minute, second, timezone:str="Asia/Shanghai"):
     """
     get the altitude and azimuth of sun by the longitude, latitude and time
     the time must be Greenwich time of the local
@@ -38,19 +40,25 @@ def get_alt_az(lon, lat, height, year, month, day, hour, minute, second):
     :param second: second
     :return: return the azimuth and latitude
     """
-    date = datetime.datetime(year, month, day, hour, minute, second)
-    date = date.strftime("%Y/%m/%d %H:%M:%S")
+    # trans local time to UTC
+    loacal_time = datetime.datetime(year, month, day, hour, minute, second)
+    local_tz = pytz.timezone(timezone)
+    local_time = local_tz.localize(loacal_time)
+    utc_time = loacal_time.astimezone(pytz.UTC)
+
+    # date = date.strftime("%Y/%m/%d %H:%M:%S")
     # print(date)
-    sun = ephem.Sun()
+    # sun = ephem.Sun()
     ga_tech = ephem.Observer()
     ga_tech.lon = str(lon)
     ga_tech.lat = str(lat)
     ga_tech.elevation = height
-    ga_tech.date = date
-    sun.compute(ga_tech)
+    ga_tech.date = utc_time
+    # sun.compute(ga_tech)
+    sun = ephem.Sun(ga_tech)
     # repr() 方法可以将读取到的格式字符，比如换行符、制表符，转化为其相应的转义字符
-    sun_altitude = float(repr(sun.alt))/math.pi * 180.0
-    sun_azimuth = float(repr(sun.az))/math.pi * 180.0
+    sun_altitude = float(repr(sun.alt))* 180.0/math.pi 
+    sun_azimuth = float(repr(sun.az))* 180.0/math.pi 
     return sun_altitude, sun_azimuth
 
 class EpWeather:
