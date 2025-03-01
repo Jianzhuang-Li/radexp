@@ -118,12 +118,16 @@ def dc_timestep_pipe(sky_data: SkyData, illu_data: IlluData, min_altitude: float
     
     command_2 = ["genskyvec", "-m", "4", "-c", "1", "1", "1"]
     command_3 = ["dctimestep", "-h", illu_data.vmx, illu_data.xml, illu_data.dmx]
+    # 使用with确保io及时关闭
+    with subprocess.Popen(command_1, stdout=subprocess.PIPE) as process_1:
+        with subprocess.Popen(command_2, stdin=process_1.stdout, stdout=subprocess.PIPE) as process_2:
+            with subprocess.Popen(command_3, stdin=process_2.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process_3:
+                stdout, stderr = process_3.communicate()
+    # process_1 = subprocess.Popen(command_1, stdout=subprocess.PIPE)
+    # process_2 = subprocess.Popen(command_2, stdin=process_1.stdout, stdout=subprocess.PIPE)
+    # process_3 = subprocess.Popen(command_3, stdin=process_2.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
-    process_1 = subprocess.Popen(command_1, stdout=subprocess.PIPE)
-    process_2 = subprocess.Popen(command_2, stdin=process_1.stdout, stdout=subprocess.PIPE)
-    process_3 = subprocess.Popen(command_3, stdin=process_2.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-
-    stdout, stderr = process_3.communicate()
+    # stdout, stderr = process_3.communicate()
 
     if stderr != '':
         raise RuntimeError
@@ -213,6 +217,15 @@ def gen_skv_W(altitude, azimuth, direct_normal_irradiance, diffuse_horizontal_ir
               " " + str(diffuse_horizontal_irradiance) + " " + " |genskyvec -m 4 -c 1 1 1 > " + path_save_skv
     print(command)
     os.system(command)
+
+def rgb_group_2_lux(rgb_list: List[Tuple[float]]):
+    r, g, b = 0.0, 0.0, 0.0
+    for rgb_item in rgb_list:
+        r += rgb_item[0]
+        g += rgb_item[1]
+        b += rgb_item[2]
+    illu = 179.0 * r * 0.25 + g * 0.670 + b * 0.065
+    return illu 
 
 
 def rgb2lux(rgb_path):

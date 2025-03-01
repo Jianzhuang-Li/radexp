@@ -26,6 +26,12 @@ dmx_east = os.path.join(radfiles_dmx, "east.dmx")
 xml_angle_null = os.path.join(radfiles_xml, "type25_anglenull.xml")
 xml_angle_45 = os.path.join(radfiles_xml, "type25_angle45.xml")
 
+def get_type25_xml(angle=None):
+    if angle == None:
+        return xml_angle_null
+    else:
+        return os.path.join(radfiles_xml, f"type25_angle{angle}.xml")
+
 # skv for testing
 skv_063010 = os.path.join(radfiles_skv, "6_30_10.skv")
 skv_063014 = os.path.join(radfiles_skv, "6_30_14.skv")
